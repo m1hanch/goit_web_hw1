@@ -1,17 +1,14 @@
 import calendar
-import csv
 import json
 import os
-import string
 from collections import UserDict
 from datetime import datetime
 import re
-
+from abc import ABC, abstractmethod
+import tkinter as tk
 
 class Field:
     pass
-
-
 class Phone(Field):
     def __init__(self, phone: str):
         self.__value = None
@@ -223,7 +220,6 @@ class Record:
         s = f'Name: {self.name}, Address: {self.address}, email: {self.email}, phones: {", ".join([phone.phone for phone in self.phones])}'
         return s if self.birthday is None else f'{s}, birthday: {self.birthday}'
 
-
 class AddressBook(UserDict):
     def __init__(self, N=1):
         super().__init__()
@@ -313,75 +309,135 @@ class AddressBook(UserDict):
                          contact.birthday and contact.days_to_birthday() <= number_of_days]
         return contacts_list
 
+class UserInterface(ABC):
+    @abstractmethod
+    def display(self):
+        pass
 
-def run():
-    ab = AddressBook()
-    while True:
-        print('1. Load data from json file')
-        print("2. Add Record")
-        print('3. Edit record')
-        print('4. Remove record')
-        print("5. Search")
-        print("6. Show all contacts")
-        print('7. Show all contacts with the birthday within next n days')
-        print("8. Save")
-        print("9. Save and Exit")
-        print('10. Exit without saving')
-
-        choice = input("Enter your choice: ")
-        if choice == '1':
-            os.system('cls')
-            while True:
-                full_path = input('Provide full path to the desired json file: ')
-                if os.path.isfile(full_path):
-                    ab.load_from_file(full_path)
-                    if len(ab) == 0:
-                        print('Nothing to load')
-                    else:
-                        print('Successfully loaded\n')
-                        break
+class ConsoleUI(UserInterface):
+    @staticmethod
+    def load_data(ab: AddressBook):
+        os.system('cls')
+        while True:
+            full_path = input('Provide full path to the desired json file: ')
+            if os.path.isfile(full_path):
+                ab.load_from_file(full_path)
+                if len(ab) == 0:
+                    print('Nothing to load')
                 else:
-                    os.system('cls')
-                    print('Wrong file path. Please try again.\n')
-        elif choice == "2":
-            while True:
+                    print('Successfully loaded\n')
+                    break
+            else:
                 os.system('cls')
-                name = input("Enter name: ")
-                try:
-                    name = Name(name)
-                    break
-                except ValueError:
-                    print('Name can contain only letters!')
-            while True:
-                number = input('Enter phone: ')
-                try:
-                    phones = [Phone(number)]
-                    while True:
-                        print('Enter another phone?')
-                        choice = input('1. Yes\n2. No\nChoice: ')
-                        if choice == '1':
-                            number = input('Enter phone: ')
-                            if number in [phone.phone for phone in phones]:
-                                print("This phone number has already been added!")
-                            else:
-                                phones.append(Phone(number))
-                        elif choice == '2':
-                            break
+                print('Wrong file path. Please try again.\n')
+    @staticmethod
+    def save_data(ab: AddressBook):
+        os.system('cls')
+        while True:
+            full_path = input('Provide full path to the desired json file: ')
+            if os.path.isfile(full_path) or re.match(r'[a-zA-z0-9]+.json', os.path.basename(full_path)):
+                ab.save_to_file(full_path)
+                if len(ab) == 0:
+                    print('Nothing to save')
+                else:
+                    print('Data has been successfully saved\n')
+                break
+            else:
+                os.system('cls')
+                print('Wrong file path. Please try again.')
+    @staticmethod
+    def add_record(ab: AddressBook):
+        while True:
+            os.system('cls')
+            name = input("Enter name: ")
+            try:
+                name = Name(name)
+                break
+            except ValueError:
+                print('Name can contain only letters!')
+        while True:
+            number = input('Enter phone: ')
+            try:
+                phones = [Phone(number)]
+                while True:
+                    print('Enter another phone?')
+                    choice = input('1. Yes\n2. No\nChoice: ')
+                    if choice == '1':
+                        number = input('Enter phone: ')
+                        if number in [phone.phone for phone in phones]:
+                            print("This phone number has already been added!")
                         else:
-                            print('Wrong option!\n')
-                    break
-                except ValueError:
-                    print("Incorrect phone number! It must contain exactly 10 numbers.")
-            while True:
-                email = input('Enter email: ')
-                try:
-                    if email not in [contact.email.email for contact in ab.list_contacts()]:
-                        email = Email(email)
+                            phones.append(Phone(number))
+                    elif choice == '2':
                         break
                     else:
-                        print('This email is already registered. Please provide another address')
-                except ValueError:
-                    print('Wrong email provided')
+                        print('Wrong option!\n')
+                break
+            except ValueError:
+                print("Incorrect phone number! It must contain exactly 10 numbers.")
+        while True:
+            email = input('Enter email: ')
+            try:
+                if email not in [contact.email.email for contact in ab.list_contacts()]:
+                    email = Email(email)
+                    break
+                else:
+                    print('This email is already registered. Please provide another address')
+            except ValueError:
+                print('Wrong email provided')
+        while True:
+            town = input('Town: ')
+            street = input('Street: ')
+            building = input('Building: ')
+            try:
+                apartment = int(input('Apartment (optional): '))
+            except ValueError:
+                apartment = None
+            try:
+                address = Address(town, street, building, apartment)
+                break
+            except ValueError:
+                print('Wrong address!')
+
+        while True:
+            birthday = input('Birthday (dd.mm.yyyy):')
+            try:
+                birthday = Birthday(birthday)
+                break
+            except ValueError:
+                print('Wrong date!')
+        rec = Record(name, address, email, phones, birthday=birthday)
+        ab.add_record(rec)
+        os.system('cls')
+        print('Record successfully added.\n')
+    @staticmethod
+    def edit_record(ab: AddressBook):
+        os.system('cls')
+        print('Which record do you want to edit?')
+        records_dict = {}
+        for idx, record in enumerate(ab.list_contacts(), 1):
+            print(str(idx) + '.', record)
+            records_dict.update({idx: record})
+        while True:
+            choice = int(input('\nContact number to edit: '))
+            if choice <= len(records_dict):
+                record = records_dict.get(choice)
+                break
+            else:
+                print('Wrong option. Please try again.')
+        choice = input(
+            'What property do you want to edit?:\n1. Name\n2. Address\n3. Email\n4. Phone\n5. Birthday\nOption: ')
+        record = ab.list_contacts()[ab.list_contacts().index(record)]
+        if choice == '1':
+            try:
+                new_name = input('Enter the new name: ')
+                record.edit_name(new_name)
+                os.system('cls')
+                print('Name has  been successfully changed')
+            except ValueError:
+                print('Wrong name, please try again')
+        elif choice == '2':
+            os.system('cls')
             while True:
                 town = input('Town: ')
                 street = input('Street: ')
@@ -391,225 +447,203 @@ def run():
                 except ValueError:
                     apartment = None
                 try:
-                    address = Address(town, street, building, apartment)
+                    record.edit_address(town, street, building, apartment)
+                    os.system('cls')
+                    print('Contact successfully edited!')
                     break
                 except ValueError:
                     print('Wrong address!')
-
-            while True:
-                birthday = input('Birthday (dd.mm.yyyy):')
-                try:
-                    birthday = Birthday(birthday)
-                    break
-                except ValueError:
-                    print('Wrong date!')
-            rec = Record(name, address, email, phones, birthday=birthday)
-            ab.add_record(rec)
-            os.system('cls')
-            print('Record successfully added.\n')
         elif choice == '3':
             os.system('cls')
-            print('Which record do you want to edit?')
-            records_dict = {}
-            for idx, record in enumerate(ab.list_contacts(), 1):
-                print(str(idx) + '.', record)
-                records_dict.update({idx: record})
             while True:
-                choice = int(input('\nContact number to edit: '))
-                if choice <= len(records_dict):
-                    record = records_dict.get(choice)
-                    break
-                else:
-                    print('Wrong option. Please try again.')
-            choice = input(
-                'What property do you want to edit?:\n1. Name\n2. Address\n3. Email\n4. Phone\n5. Birthday\nOption: ')
-            record = ab.list_contacts()[ab.list_contacts().index(record)]
-            if choice == '1':
+                new_email = input('Enter the new email: ')
                 try:
-                    new_name = input('Enter the new name: ')
-                    record.edit_name(new_name)
-                    os.system('cls')
-                    print('Name has  been successfully changed')
-                except ValueError:
-                    print('Wrong name, please try again')
-            elif choice == '2':
-                os.system('cls')
-                while True:
-                    town = input('Town: ')
-                    street = input('Street: ')
-                    building = input('Building: ')
-                    try:
-                        apartment = int(input('Apartment (optional): '))
-                    except ValueError:
-                        apartment = None
-                    try:
-                        record.edit_address(town, street, building, apartment)
+                    if new_email not in [contact.email.email for contact in ab.list_contacts()]:
+                        record.edit_email(new_email)
                         os.system('cls')
                         print('Contact successfully edited!')
                         break
-                    except ValueError:
-                        print('Wrong address!')
-            elif choice == '3':
-                os.system('cls')
-                while True:
-                    new_email = input('Enter the new email: ')
-                    try:
-                        if new_email not in [contact.email.email for contact in ab.list_contacts()]:
-                            record.edit_email(new_email)
-                            os.system('cls')
-                            print('Contact successfully edited!')
-                            break
-                        else:
-                            print('This email is already registered. Please provide another address')
-                    except ValueError:
-                        print('Wrong email provided')
-            elif choice == '4':
-                os.system('cls')
-                old_number = input('Enter the number you want to be changed: ')
-                while True:
-                    try:
-                        new_number = input('Enter new number: ')
-                        new_number = Phone(new_number)
-                        break
-                    except ValueError:
-                        print('Wrong new phone number provided. Try again')
-                record.edit_phone(old_number, new_number.phone)
-            elif choice == '5':
-                os.system('cls')
-                while True:
-                    new_bday = input('Enter new birthday date (dd.mm.yyyy): ')
-                    try:
-                        record.edit_birthday(new_bday)
-                        break
-                    except ValueError:
-                        print('Wrong date. Please try again.')
-                os.system('cls')
-                print('Birthday date successfully changed!')
-
+                    else:
+                        print('This email is already registered. Please provide another address')
+                except ValueError:
+                    print('Wrong email provided')
         elif choice == '4':
             os.system('cls')
-            print('Which record do you want to delete?')
-            records_dict = {}
-            for idx, record in enumerate(ab.list_contacts(), 1):
-                print(str(idx) + '.', record)
-                records_dict.update({idx: record})
-            while True:
-                choice = int(input('\nContact number to delete: '))
-                if choice <= len(records_dict):
-                    record = records_dict.get(choice)
-                    break
-                else:
-                    print('Wrong option. Please try again.')
-            while True:
-                choice = input(
-                    f"Are you sure you want to delete {record.name.name}'s contact?\n1. Yes\n2. No\nOption: ")
-                if choice == '1':
-                    ab.remove_contact(record.name.name)
-                    os.system('cls')
-                    print('Contact has been successfully removed!')
-                    break
-                elif choice == '2':
-                    os.system('cls')
-                    break
-                else:
-                    print('Wrong option, please try again.')
-        elif choice == "5":
-            while True:
-                os.system('cls')
-                print("1.Search by number")
-                print("2.Search by name")
-                search_term = input("Option: ")
-                if search_term == '1':
-                    number = input('Enter the number or a part of it to search: ')
-                    results = ab.search_by_number(number)
-                    break
-                elif search_term == '2':
-                    name = input('Enter the name or a part of it to search: ')
-                    os.system('cls')
-                    results = ab.search_by_name(name)
-                    print('\n')
-                    break
-                else:
-                    print('Wrong option! Please try again')
-            if results:
-                for result in results:
-                    print("Name:", result.name.name)
-                    print("Phone:", ", ".join(phone.phone for phone in result.phones))
-                    print("Email: ", result.email.email)
-                    print("Address: ", result.address)
-                    if result.birthday:
-                        print("Birthday:", result.birthday.birthday)
-                    print("-" * 20)
-            else:
-                print("No results found.")
-        elif choice == '6':
-            os.system('cls')
-            table_format = "{:<20} {:<35} {:<28} {:<35} {:<12}"
-            header = table_format.format("Name", "Address", "email", "phones", "birthday")
-            table = header + '\n'
-            for row in ab.list_contacts():
-                bday = row.birthday.birthday if row.birthday else 'None'
-                formatted_row = table_format.format(
-                    row.name.name,
-                    f'{row.address.town}, {row.address.street} {row.address.building}/{row.address.apartment}',
-                    row.email.email,
-                    ', '.join([phone.phone for phone in row.phones]),
-                    bday
-                )
-                table += formatted_row + "\n"
-            print(table)
-        elif choice == '7':
-            os.system('cls')
+            old_number = input('Enter the number you want to be changed: ')
             while True:
                 try:
-                    days = int(input("Enter time period (in days) within you want to see everyone's birthday: "))
-                    for contact in ab.birthday_contacts(days):
-                        print(contact)
-                    print('\n')
+                    new_number = input('Enter new number: ')
+                    new_number = Phone(new_number)
                     break
                 except ValueError:
-                    print('Number of days must be a number')
-        elif choice == "8":
+                    print('Wrong new phone number provided. Try again')
+            record.edit_phone(old_number, new_number.phone)
+        elif choice == '5':
             os.system('cls')
             while True:
-                full_path = input('Provide full path to the desired json file: ')
-                if os.path.isfile(full_path) or re.match(r'[a-zA-z0-9]+.json', os.path.basename(full_path)):
-                    ab.save_to_file(full_path)
-                    if len(ab) == 0:
-                        print('Nothing to save')
-                    else:
-                        print('Data has been successfully saved\n')
+                new_bday = input('Enter new birthday date (dd.mm.yyyy): ')
+                try:
+                    record.edit_birthday(new_bday)
                     break
-                else:
-                    os.system('cls')
-                    print('Wrong file path. Please try again.')
-        elif choice == '9':
+                except ValueError:
+                    print('Wrong date. Please try again.')
             os.system('cls')
-            while True:
-                full_path = input('Provide full path to the desired json file: ')
-                if os.path.isfile(full_path) or re.match(r'[a-zA-z0-9]+.json', os.path.basename(full_path)):
-                    ab.save_to_file(full_path)
-                    if len(ab) == 0:
-                        print('Nothing to save')
-                    else:
-                        print('Data has been successfully saved\n')
-                    input("Press Enter to return to the main menu...")
-                    break
-                else:
-                    os.system('cls')
-                    print('Wrong file path. Please try again.')
-        elif choice == '10':
+            print('Birthday date successfully changed!')
+    @staticmethod
+    def remove_record(ab: AddressBook):
+        os.system('cls')
+        print('Which record do you want to delete?')
+        records_dict = {}
+        for idx, record in enumerate(ab.list_contacts(), 1):
+            print(str(idx) + '.', record)
+            records_dict.update({idx: record})
+        while True:
+            choice = int(input('\nContact number to delete: '))
+            if choice <= len(records_dict):
+                record = records_dict.get(choice)
+                break
+            else:
+                print('Wrong option. Please try again.')
+        while True:
+            choice = input(
+                f"Are you sure you want to delete {record.name.name}'s contact?\n1. Yes\n2. No\nOption: ")
+            if choice == '1':
+                ab.remove_contact(record.name.name)
+                os.system('cls')
+                print('Contact has been successfully removed!')
+                break
+            elif choice == '2':
+                os.system('cls')
+                break
+            else:
+                print('Wrong option, please try again.')
+    @staticmethod
+    def search(ab: AddressBook):
+        while True:
             os.system('cls')
-            print("Exiting the Address Book...")
-            return  # Повертаємо з функції run без повернення до головного меню
+            print("1.Search by number")
+            print("2.Search by name")
+            search_term = input("Option: ")
+            if search_term == '1':
+                number = input('Enter the number or a part of it to search: ')
+                results = ab.search_by_number(number)
+                break
+            elif search_term == '2':
+                name = input('Enter the name or a part of it to search: ')
+                os.system('cls')
+                results = ab.search_by_name(name)
+                print('\n')
+                break
+            else:
+                print('Wrong option! Please try again')
+        if results:
+            for result in results:
+                print("Name:", result.name.name)
+                print("Phone:", ", ".join(phone.phone for phone in result.phones))
+                print("Email: ", result.email.email)
+                print("Address: ", result.address)
+                if result.birthday:
+                    print("Birthday:", result.birthday.birthday)
+                print("-" * 20)
         else:
-            os.system('cls')
-            print('Wrong choice. Please try again.')
+            print("No results found.")
+    @staticmethod
+    def show_all(ab: AddressBook):
+        os.system('cls')
+        table_format = "{:<20} {:<35} {:<28} {:<35} {:<12}"
+        header = table_format.format("Name", "Address", "email", "phones", "birthday")
+        table = header + '\n'
+        for row in ab.list_contacts():
+            bday = row.birthday.birthday if row.birthday else 'None'
+            formatted_row = table_format.format(
+                row.name.name,
+                f'{row.address.town}, {row.address.street} {row.address.building}/{row.address.apartment}',
+                row.email.email,
+                ', '.join([phone.phone for phone in row.phones]),
+                bday
+            )
+            table += formatted_row + "\n"
+        print(table)
+    @staticmethod
+    def show_birthday(ab: AddressBook):
+        os.system('cls')
+        while True:
+            try:
+                days = int(input("Enter time period (in days) within you want to see everyone's birthday: "))
+                for contact in ab.birthday_contacts(days):
+                    print(contact)
+                print('\n')
+                break
+            except ValueError:
+                print('Number of days must be a number')
 
+    def save_and_exit(self, ab: AddressBook):
+        self.save_data(ab)
+        quit()
 
+    @staticmethod
+    def exit(arg):
+        quit()
+
+    def display(self):
+        ab = AddressBook()
+        menu_options = {
+            '1': self.load_data,
+            '2': self.add_record,
+            '3': self.edit_record,
+            '4': self.remove_record,
+            '5': self.search,
+            '6': self.show_all,
+            '7': self.show_birthday,
+            '8': self.save_data,
+            '9': self.save_data,
+            '10': self.exit
+        }
+        while True:
+            print('1. Load data from json file')
+            print("2. Add Record")
+            print('3. Edit record')
+            print('4. Remove record')
+            print("5. Search")
+            print("6. Show all contacts")
+            print('7. Show all contacts with the birthday within next n days')
+            print("8. Save")
+            print("9. Save and Exit")
+            print('10. Exit without saving')
+
+            choice = input("Enter your choice: ")
+            if choice in menu_options:
+                menu_options[choice](ab)
+            else:
+                os.system('cls')
+                print('Wrong option! Please try again')
+
+class GraphicalUI(UserInterface):
+    def __init__(self):
+        self.root = tk.Tk()
+        self.root.title("Graphical UI App")
+        self.root.geometry("300x200")
+
+        self.label = tk.Label(self.root, text="Hello, GraphicalUI!")
+        self.label.pack(pady=20)
+
+        self.entry = tk.Entry(self.root)
+        self.entry.pack(pady=20)
+
+        self.button = tk.Button(self.root, text="Click Me!", command=self.update_label)
+        self.button.pack(pady=20)
+
+    def update_label(self):
+        entered_text = self.entry.get()
+        self.label.config(text=entered_text)
+
+    def display(self):
+        self.root.mainloop()
 
 
 if __name__ == "__main__":
-    run()
+    UI = GraphicalUI()
+    #UI = ConsoleUI()
+    UI.display()
 
 
